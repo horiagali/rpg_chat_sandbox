@@ -3,7 +3,7 @@ use macroquad_tiled_clone::Map as TiledMap;
 use std::path::Path;
 
 pub async fn run() {
-    let game = Game::new().await;
+    let mut game = Game::new().await;
 
     loop {
         game.frame().await;
