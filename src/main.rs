@@ -1,11 +1,10 @@
-/*
 mod npc;
 
+use crate::npc::agent::interact_with_blacksmith;
+use crate::npc::characters::Blacksmith;
 use rig::client::Nothing;
 use rig::providers::ollama;
 use std::io::{self, Write};
-use crate::npc::characters::Blacksmith;
-use crate::npc::agent::interact_with_blacksmith;
 
 #[tokio::main]
 async fn main() {
@@ -20,7 +19,9 @@ async fn main() {
         io::stdout().flush().unwrap();
 
         let mut input = String::new();
-        io::stdin().read_line(&mut input).expect("Failed to read line");
+        io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read line");
         let input = input.trim();
 
         if input == "exit" {
@@ -50,9 +51,8 @@ async fn main() {
         println!("(Opinion: {})\n", blacksmith.opinion);
     }
 }
-*/
 
-#[macroquad::main("RPG Chat Sandbox")]
-async fn main() {
-    rpg_chat_sandbox::game::run().await;
-}
+// #[macroquad::main("RPG Chat Sandbox")]
+// async fn main() {
+//     rpg_chat_sandbox::game::run().await;
+// }

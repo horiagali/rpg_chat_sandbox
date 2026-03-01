@@ -1,6 +1,6 @@
 use macroquad::prelude::*;
 use macroquad_tiled_clone::{IrObject, Map as TiledMap};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub async fn run() {
     let mut game = Game::new().await;
@@ -17,16 +17,16 @@ struct Game {
 
 impl Game {
     async fn new() -> Self {
-        let tiled_map = TiledMap::load("game/map.json")
+        let tiled_map = TiledMap::load("assets/map.json")
             .await
             .expect("Failed to load map");
         let world_truth = WorldTruthIndex::from_map(&tiled_map);
 
         println!(
             "Loaded map truth index: {} entities, {} spawn points, {} colliders",
-            world_truth.entities_by_id.len(),
-            world_truth.spawns_by_id.len(),
-            world_truth.collider_objects.len()
+            world_truth.entity_handles.len(),
+            world_truth.spawn_handles.len(),
+            world_truth.collider_count()
         );
 
         Self {
@@ -47,8 +47,12 @@ impl Game {
             draw_circle(player_spawn.x, player_spawn.y, 4.0, RED);
         }
 
+        if let Some(blacksmith_pos) = self.world_truth.entity_world_pos(self, "blacksmith_01") {
+            draw_circle(blacksmith_pos.x, blacksmith_pos.y, 5.0, BLUE);
+        }
+
         draw_text(
-            &format!("entities: {}", self.world_truth.entities_by_id.len()),
+            &format!("entities: {}", self.world_truth.entity_handles.len()),
             12.0,
             24.0,
             24.0,
@@ -73,16 +77,21 @@ struct ObjectHandle {
 }
 
 struct WorldTruthIndex {
-    entities_by_id: HashMap<String, ObjectHandle>,
-    spawns_by_id: HashMap<String, ObjectHandle>,
-    collider_objects: Vec<ObjectHandle>,
+    // Immutable map-derived indices.
+    entity_handles: HashMap<String, ObjectHandle>,
+    spawn_handles: HashMap<String, ObjectHandle>,
+    collider_handles: Vec<ObjectHandle>,
+
+    // Mutable runtime overlays keyed by stable map IDs.
+    entity_position_overrides: HashMap<String, Vec2>,
+    disabled_entities: HashSet<String>,
 }
 
 impl WorldTruthIndex {
     fn from_map(map: &TiledMap) -> Self {
-        let mut entities_by_id = HashMap::new();
-        let mut spawns_by_id = HashMap::new();
-        let mut collider_objects = Vec::new();
+        let mut entity_handles = HashMap::new();
+        let mut spawn_handles = HashMap::new();
+        let mut collider_handles = Vec::new();
 
         for (layer_index, layer) in map.object_layers().iter().enumerate() {
             for (object_index, obj) in layer.objects.iter().enumerate() {
@@ -92,28 +101,66 @@ impl WorldTruthIndex {
                 };
 
                 if let Some(entity_id) = obj.properties.get_string("entity_id") {
-                    entities_by_id.insert(entity_id.to_string(), handle);
+                    entity_handles.insert(entity_id.to_string(), handle);
                 }
 
                 if let Some(spawn_id) = obj.properties.get_string("spawn_id") {
-                    spawns_by_id.insert(spawn_id.to_string(), handle);
+                    spawn_handles.insert(spawn_id.to_string(), handle);
                 }
 
                 if obj.properties.get_bool("collider").unwrap_or(false) {
-                    collider_objects.push(handle);
+                    collider_handles.push(handle);
                 }
             }
         }
 
         Self {
-            entities_by_id,
-            spawns_by_id,
-            collider_objects,
+            entity_handles,
+            spawn_handles,
+            collider_handles,
+            entity_position_overrides: HashMap::new(),
+            disabled_entities: HashSet::new(),
         }
     }
 
     fn get_spawn<'a>(&self, game: &'a Game, spawn_id: &str) -> Option<&'a IrObject> {
-        let handle = self.spawns_by_id.get(spawn_id)?;
+        let handle = self.spawn_handles.get(spawn_id)?;
         game.object_from_handle(*handle)
+    }
+
+    fn get_entity<'a>(&self, game: &'a Game, entity_id: &str) -> Option<&'a IrObject> {
+        let handle = self.entity_handles.get(entity_id)?;
+        game.object_from_handle(*handle)
+    }
+
+    fn entity_world_pos(&self, game: &Game, entity_id: &str) -> Option<Vec2> {
+        if self.disabled_entities.contains(entity_id) {
+            return None;
+        }
+
+        if let Some(pos) = self.entity_position_overrides.get(entity_id) {
+            return Some(*pos);
+        }
+
+        let obj = self.get_entity(game, entity_id)?;
+        Some(vec2(obj.x, obj.y))
+    }
+
+    fn set_entity_world_pos(&mut self, entity_id: impl Into<String>, new_pos: Vec2) {
+        self.entity_position_overrides
+            .insert(entity_id.into(), new_pos);
+    }
+
+    fn set_entity_enabled(&mut self, entity_id: impl Into<String>, enabled: bool) {
+        let id = entity_id.into();
+        if enabled {
+            self.disabled_entities.remove(&id);
+        } else {
+            self.disabled_entities.insert(id);
+        }
+    }
+
+    fn collider_count(&self) -> usize {
+        self.collider_handles.len()
     }
 }
