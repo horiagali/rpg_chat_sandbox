@@ -1,6 +1,5 @@
 use macroquad::prelude::*;
 use macroquad_tiled_clone::Map as TiledMap;
-use std::path::Path;
 
 pub async fn run() {
     let mut game = Game::new().await;
