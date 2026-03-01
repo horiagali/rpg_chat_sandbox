@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { version = "1.35", features = ["full"] } # Required for async main
+rig-core = "0.1.0" # Or current version for LLM agent logic
+serde = { version = "1.0", features = ["derive"] } # For data serialization
