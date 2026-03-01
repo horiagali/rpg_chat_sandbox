@@ -20,7 +20,9 @@ struct Game {
     tiled_map: TiledMap,
     world_truth: WorldTruthIndex,
     player: PlayerData,
-    blacksmith: NpcData,
+    blacksmiths: Vec<NpcData>,
+    player_texture: Texture2D,
+    blacksmith_texture: Texture2D,
 }
 
 impl Game {
@@ -29,18 +31,36 @@ impl Game {
             .await
             .expect("Failed to load map");
         let world_truth = WorldTruthIndex::from_map(&tiled_map);
-        let player_position = find_actor_position(&tiled_map, "Player")
-            .expect("Could not find `Player` object in map EntityLayer");
-        let blacksmith_position = find_actor_position(&tiled_map, "Blacksmith")
-            .expect("Could not find `Blacksmith` object in map EntityLayer");
-        let player = PlayerData::new("player_01", "Player", player_position);
-        let blacksmith = NpcData::new(
-            "blacksmith_01",
-            "Blacksmith",
-            NpcRole::Merchant,
-            NpcAttitude::Friendly,
-            blacksmith_position,
+        let player_position = find_spawn_position(&tiled_map, "player_start")
+            .expect("Could not find spawn marker with spawn_id=`player_start`");
+        let blacksmith_positions = find_spawn_positions(&tiled_map, "blacksmith");
+        assert!(
+            !blacksmith_positions.is_empty(),
+            "Could not find spawn marker(s) with spawn_id=`blacksmith`"
         );
+        let player = PlayerData::new("player_01", "Player", player_position);
+        let blacksmiths: Vec<NpcData> = blacksmith_positions
+            .into_iter()
+            .enumerate()
+            .map(|(index, position)| {
+                NpcData::new(
+                    format!("blacksmith_{:02}", index + 1),
+                    "Blacksmith",
+                    NpcRole::Merchant,
+                    NpcAttitude::Friendly,
+                    position,
+                )
+            })
+            .collect();
+        let player_texture = load_texture("assets/heeheemisphere.png")
+            .await
+            .expect("Failed to load player texture");
+        let blacksmith_texture = load_texture("assets/big_yahu.png")
+            .await
+            .expect("Failed to load blacksmith texture");
+
+        player_texture.set_filter(FilterMode::Nearest);
+        blacksmith_texture.set_filter(FilterMode::Nearest);
 
         println!(
             "Loaded map truth index: {} entities, {} spawn points, {} colliders",
@@ -53,7 +73,9 @@ impl Game {
             tiled_map,
             world_truth,
             player,
-            blacksmith,
+            blacksmiths,
+            player_texture,
+            blacksmith_texture,
         }
     }
 
@@ -63,7 +85,7 @@ impl Game {
         let view_max = vec2(MAP_PIXEL_WIDTH as f32, MAP_PIXEL_HEIGHT as f32);
         self.tiled_map.draw(view_min, view_max);
 
-        draw_circle(self.player.position.x, self.player.position.y, 6.0, RED);
+        draw_actor_sprite(&self.player_texture, self.player.position, vec2(56.0, 56.0));
         draw_text(
             "Player",
             self.player.position.x + 10.0,
@@ -72,19 +94,16 @@ impl Game {
             RED,
         );
 
-        draw_circle(
-            self.blacksmith.position.x,
-            self.blacksmith.position.y,
-            6.0,
-            BLUE,
-        );
-        draw_text(
-            "Blacksmith",
-            self.blacksmith.position.x + 10.0,
-            self.blacksmith.position.y + 5.0,
-            18.0,
-            BLUE,
-        );
+        for (index, blacksmith) in self.blacksmiths.iter().enumerate() {
+            draw_actor_sprite(&self.blacksmith_texture, blacksmith.position, vec2(56.0, 56.0));
+            draw_text(
+                &format!("Blacksmith {}", index + 1),
+                blacksmith.position.x + 10.0,
+                blacksmith.position.y + 5.0,
+                18.0,
+                BLUE,
+            );
+        }
 
         draw_text(
             &format!("entities: {}", self.world_truth.entity_handles.len()),
@@ -127,6 +146,7 @@ impl WorldTruthIndex {
         let mut entity_handles = HashMap::new();
         let mut spawn_handles = HashMap::new();
         let mut collider_handles = Vec::new();
+        let mut class_name_counts: HashMap<String, u32> = HashMap::new();
 
         for (layer_index, layer) in map.object_layers().iter().enumerate() {
             for (object_index, obj) in layer.objects.iter().enumerate() {
@@ -137,6 +157,14 @@ impl WorldTruthIndex {
 
                 if let Some(entity_id) = obj.properties.get_string("entity_id") {
                     entity_handles.insert(entity_id.to_string(), handle);
+                } else if !obj.class_name.trim().is_empty() {
+                    let normalized_class = normalize_entity_key(&obj.class_name);
+                    let counter = class_name_counts
+                        .entry(normalized_class.clone())
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
+                    let generated_id = format!("{}_{}", normalized_class, counter);
+                    entity_handles.insert(generated_id, handle);
                 }
 
                 if let Some(spawn_id) = obj.properties.get_string("spawn_id") {
@@ -200,6 +228,44 @@ impl WorldTruthIndex {
     }
 }
 
+fn normalize_entity_key(class_name: &str) -> String {
+    let mut normalized = String::with_capacity(class_name.len());
+
+    for ch in class_name.chars() {
+        if ch.is_ascii_alphanumeric() {
+            normalized.push(ch.to_ascii_lowercase());
+        } else if !normalized.ends_with('_') {
+            normalized.push('_');
+        }
+    }
+
+    normalized.trim_matches('_').to_string()
+}
+
+fn find_spawn_position(map: &TiledMap, spawn_id: &str) -> Option<WorldPosition> {
+    find_spawn_positions(map, spawn_id).into_iter().next()
+}
+
+fn find_spawn_positions(map: &TiledMap, spawn_id: &str) -> Vec<WorldPosition> {
+    let mut positions = Vec::new();
+
+    for layer in map.object_layers() {
+        for object in &layer.objects {
+            if let Some(object_spawn_id) = object.properties.get_string("spawn_id") {
+                if object_spawn_id.eq_ignore_ascii_case(spawn_id) {
+                    positions.push(WorldPosition {
+                        x: object.x,
+                        y: object.y,
+                    });
+                }
+            }
+        }
+    }
+
+    positions
+}
+
+#[allow(dead_code)]
 fn find_actor_position(map: &TiledMap, actor_class_name: &str) -> Option<WorldPosition> {
     for layer in map.object_layers() {
         for object in &layer.objects {
@@ -213,4 +279,21 @@ fn find_actor_position(map: &TiledMap, actor_class_name: &str) -> Option<WorldPo
     }
 
     None
+}
+
+fn draw_actor_sprite(texture: &Texture2D, world_position: WorldPosition, draw_size: Vec2) {
+    // Tiled point objects are treated as anchor points, so draw centered on the point.
+    let draw_x = world_position.x - draw_size.x * 0.5;
+    let draw_y = world_position.y - draw_size.y * 0.5;
+
+    draw_texture_ex(
+        texture,
+        draw_x,
+        draw_y,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(draw_size),
+            ..Default::default()
+        },
+    );
 }

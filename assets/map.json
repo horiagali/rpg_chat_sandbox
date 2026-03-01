@@ -74,6 +74,12 @@
                  "id":1,
                  "name":"",
                  "point":true,
+                 "properties":[
+                        {
+                         "name":"spawn_id",
+                         "type":"string",
+                         "value":"player_start"
+                        }],
                  "rotation":0,
                  "type":"Player",
                  "visible":true,
@@ -86,12 +92,36 @@
                  "id":2,
                  "name":"",
                  "point":true,
+                 "properties":[
+                        {
+                         "name":"spawn_id",
+                         "type":"string",
+                         "value":"blacksmith"
+                        }],
                  "rotation":0,
                  "type":"Blacksmith",
                  "visible":true,
                  "width":0,
                  "x":606.08793686584,
                  "y":105.9514626476
+                }, 
+                {
+                 "height":0,
+                 "id":3,
+                 "name":"",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"spawn_id",
+                         "type":"string",
+                         "value":"blacksmith"
+                        }],
+                 "rotation":0,
+                 "type":"Blacksmith",
+                 "visible":true,
+                 "width":0,
+                 "x":337.221859609565,
+                 "y":192.535453628434
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -100,7 +130,7 @@
          "y":0
         }],
  "nextlayerid":4,
- "nextobjectid":3,
+ "nextobjectid":4,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",
