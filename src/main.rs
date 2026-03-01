@@ -1,6 +1,6 @@
 mod npc;
 
-use rig::providers::ollama;
+use rig::providers::openai;
 use std::io::{self, Write};
 use crate::npc::characters::Blacksmith;
 use crate::npc::agent::interact_with_blacksmith;
@@ -8,7 +8,7 @@ use crate::npc::agent::interact_with_blacksmith;
 #[tokio::main]
 async fn main() {
     // 1. Initialize the local Ollama client
-    let client = ollama::Client::new("http://localhost:11434");
+    let client = openai::Client::from_url("ollama", "http://localhost:11434/v1");
 
     // 2. Create your Blacksmith instance
     let mut blacksmith = Blacksmith::new();
