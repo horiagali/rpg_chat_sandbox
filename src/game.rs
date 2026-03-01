@@ -2,6 +2,12 @@ use macroquad::prelude::*;
 use macroquad_tiled_clone::{IrObject, Map as TiledMap};
 use std::collections::{HashMap, HashSet};
 
+use crate::actor::npc::{NpcAttitude, NpcData, NpcRole};
+use crate::actor::player::{PlayerData, WorldPosition};
+
+pub const MAP_PIXEL_WIDTH: i32 = 960;
+pub const MAP_PIXEL_HEIGHT: i32 = 640;
+
 pub async fn run() {
     let mut game = Game::new().await;
 
@@ -13,6 +19,8 @@ pub async fn run() {
 struct Game {
     tiled_map: TiledMap,
     world_truth: WorldTruthIndex,
+    player: PlayerData,
+    blacksmith: NpcData,
 }
 
 impl Game {
@@ -21,6 +29,18 @@ impl Game {
             .await
             .expect("Failed to load map");
         let world_truth = WorldTruthIndex::from_map(&tiled_map);
+        let player_position = find_actor_position(&tiled_map, "Player")
+            .expect("Could not find `Player` object in map EntityLayer");
+        let blacksmith_position = find_actor_position(&tiled_map, "Blacksmith")
+            .expect("Could not find `Blacksmith` object in map EntityLayer");
+        let player = PlayerData::new("player_01", "Player", player_position);
+        let blacksmith = NpcData::new(
+            "blacksmith_01",
+            "Blacksmith",
+            NpcRole::Merchant,
+            NpcAttitude::Friendly,
+            blacksmith_position,
+        );
 
         println!(
             "Loaded map truth index: {} entities, {} spawn points, {} colliders",
@@ -32,24 +52,39 @@ impl Game {
         Self {
             tiled_map,
             world_truth,
+            player,
+            blacksmith,
         }
     }
 
     async fn frame(&mut self) {
         clear_background(WHITE);
         let view_min = vec2(0.0, 0.0);
-        let view_max = vec2(screen_width(), screen_height());
+        let view_max = vec2(MAP_PIXEL_WIDTH as f32, MAP_PIXEL_HEIGHT as f32);
         self.tiled_map.draw(view_min, view_max);
 
-        // Example of querying "map as truth":
-        // read by stable id -> handle -> object record.
-        if let Some(player_spawn) = self.world_truth.get_spawn(self, "player_start") {
-            draw_circle(player_spawn.x, player_spawn.y, 4.0, RED);
-        }
+        draw_circle(self.player.position.x, self.player.position.y, 6.0, RED);
+        draw_text(
+            "Player",
+            self.player.position.x + 10.0,
+            self.player.position.y + 5.0,
+            18.0,
+            RED,
+        );
 
-        if let Some(blacksmith_pos) = self.world_truth.entity_world_pos(self, "blacksmith_01") {
-            draw_circle(blacksmith_pos.x, blacksmith_pos.y, 5.0, BLUE);
-        }
+        draw_circle(
+            self.blacksmith.position.x,
+            self.blacksmith.position.y,
+            6.0,
+            BLUE,
+        );
+        draw_text(
+            "Blacksmith",
+            self.blacksmith.position.x + 10.0,
+            self.blacksmith.position.y + 5.0,
+            18.0,
+            BLUE,
+        );
 
         draw_text(
             &format!("entities: {}", self.world_truth.entity_handles.len()),
@@ -163,4 +198,19 @@ impl WorldTruthIndex {
     fn collider_count(&self) -> usize {
         self.collider_handles.len()
     }
+}
+
+fn find_actor_position(map: &TiledMap, actor_class_name: &str) -> Option<WorldPosition> {
+    for layer in map.object_layers() {
+        for object in &layer.objects {
+            if object.class_name.eq_ignore_ascii_case(actor_class_name) {
+                return Some(WorldPosition {
+                    x: object.x,
+                    y: object.y,
+                });
+            }
+        }
+    }
+
+    None
 }

@@ -25,7 +25,7 @@ impl Default for PlayerStats {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PlayerData {
     pub id: String,
     pub display_name: String,

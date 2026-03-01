@@ -53,7 +53,7 @@ impl Default for NpcDialogueState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NpcData {
     pub id: String,
     pub display_name: String,
